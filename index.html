@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fully Reconfigurable Dashboard</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+    <style>
+        body { font-family: Arial; background:#f4f6f9; margin:20px; }
+        h2 { text-align:center; }
+        .grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+        .card { background:white; padding:15px; border-radius:10px; }
+        select,input,button { margin:5px; }
+    </style>
+</head>
+
+<body>
+
+<h2>Advanced Interactive Dashboard</h2>
+
+<div class="grid">
+
+<!-- SCATTER -->
+<div class="card">
+<h3>Scatter / Line / Bubble</h3>
+
+X:
+<select id="xScatter">
+<option value="Age">Age</option>
+<option value="RestingBP">RestingBP</option>
+<option value="Cholesterol">Cholesterol</option>
+<option value="MaxHR">MaxHR</option>
+</select>
+
+Y:
+<select id="yScatter">
+<option value="Cholesterol">Cholesterol</option>
+<option value="MaxHR">MaxHR</option>
+<option value="RestingBP">RestingBP</option>
+</select>
+
+<button onclick="swapAxes()">Swap Axes</button>
+
+Age >
+<input type="number" id="scatterFilter" value="30">
+
+Chart:
+<select id="scatterType">
+<option value="markers">Scatter</option>
+<option value="lines">Line</option>
+<option value="markers+lines">Line+Markers</option>
+</select>
+
+Bubble Size:
+<select id="bubbleSize">
+<option value="none">None</option>
+<option value="Age">Age</option>
+<option value="Cholesterol">Cholesterol</option>
+</select>
+
+Color:
+<select id="scatterColor">
+<option value="HeartDisease">HeartDisease</option>
+<option value="Sex">Sex</option>
+</select>
+
+Scale:
+<select id="scatterScale">
+<option value="Viridis">Viridis</option>
+<option value="Jet">Jet</option>
+</select>
+
+<button onclick="updateScatter()">Update</button>
+
+<div id="scatter"></div>
+</div>
+
+<!-- HISTOGRAM / BOX -->
+<div class="card">
+<h3>Histogram / Box Plot</h3>
+
+Column:
+<select id="histKey">
+<option value="Age">Age</option>
+<option value="Cholesterol">Cholesterol</option>
+<option value="MaxHR">MaxHR</option>
+</select>
+
+Age >
+<input type="number" id="histFilter" value="30">
+
+Type:
+<select id="histType">
+<option value="histogram">Histogram</option>
+<option value="box">Box Plot</option>
+</select>
+
+Mode:
+<select id="histMode">
+<option value="overlay">Overlay</option>
+<option value="stack">Stack</option>
+</select>
+
+Color:
+<select id="histColor">
+<option value="none">None</option>
+<option value="Sex">Sex</option>
+<option value="HeartDisease">HeartDisease</option>
+</select>
+
+<button onclick="updateHist()">Update</button>
+
+<div id="histogram"></div>
+</div>
+
+<!-- BAR / PIE -->
+<div class="card">
+<h3>Bar / Pie Chart</h3>
+
+Category:
+<select id="barKey">
+<option value="Sex">Sex</option>
+<option value="HeartDisease">HeartDisease</option>
+</select>
+
+Age >
+<input type="number" id="barFilter" value="30">
+
+Type:
+<select id="barType">
+<option value="bar">Bar</option>
+<option value="pie">Pie</option>
+</select>
+
+Orientation:
+<select id="barOrientation">
+<option value="v">Vertical</option>
+<option value="h">Horizontal</option>
+</select>
+
+Scale:
+<select id="barScale">
+<option value="Viridis">Viridis</option>
+<option value="Jet">Jet</option>
+</select>
+
+<button onclick="updateBar()">Update</button>
+
+<div id="bar"></div>
+</div>
+
+</div>
+
+<script>
+let data = [];
+let globalFilter = null;
+
+// LOAD DATA
+fetch("data.csv")
+.then(r=>r.text())
+.then(text=>{
+    let rows = text.split("\n").slice(1);
+
+    rows.forEach(r=>{
+        let c = r.split(",");
+        if(c.length<12) return;
+
+        data.push({
+            Age:+c[0],
+            Sex:c[1],
+            RestingBP:+c[3],
+            Cholesterol:+c[4],
+            MaxHR:+c[7],
+            HeartDisease:c[11]
+        });
+    });
+
+    updateScatter();
+    updateHist();
+    updateBar();
+});
+
+// HELPERS
+function getColors(arr,key){
+    let map={}, u=[...new Set(arr.map(d=>d[key]))];
+    u.forEach((v,i)=>map[v]=i);
+    return arr.map(d=>map[d[key]]);
+}
+
+// SWAP AXES
+function swapAxes(){
+    let x=document.getElementById("xScatter");
+    let y=document.getElementById("yScatter");
+    let temp=x.value;
+    x.value=y.value;
+    y.value=temp;
+    updateScatter();
+}
+
+// SCATTER
+function updateScatter(){
+
+    let x=document.getElementById("xScatter").value;
+    let y=document.getElementById("yScatter").value;
+    let age=+document.getElementById("scatterFilter").value;
+    let type=document.getElementById("scatterType").value;
+    let bubble=document.getElementById("bubbleSize").value;
+    let colorKey=document.getElementById("scatterColor").value;
+    let scale=document.getElementById("scatterScale").value;
+
+    let f=data.filter(d=>d.Age>age);
+
+    if(globalFilter!==null){
+        f=f.filter(d=>d[colorKey]==globalFilter);
+    }
+
+    let sizes = bubble==="none" ? 10 : f.map(d=>d[bubble]/5);
+
+    Plotly.newPlot("scatter",[{
+        x:f.map(d=>d[x]),
+        y:f.map(d=>d[y]),
+        mode:type,
+        type:"scatter",
+        marker:{
+            size:sizes,
+            color:getColors(f,colorKey),
+            colorscale:scale
+        }
+    }]);
+
+    document.getElementById("scatter")
+    .on('plotly_click',e=>{
+        let i=e.points[0].pointIndex;
+        globalFilter=f[i][colorKey];
+        updateHist();
+        updateBar();
+    });
+}
+
+// HISTOGRAM / BOX
+function updateHist(){
+
+    let key=document.getElementById("histKey").value;
+    let age=+document.getElementById("histFilter").value;
+    let type=document.getElementById("histType").value;
+    let mode=document.getElementById("histMode").value;
+    let color=document.getElementById("histColor").value;
+
+    let f=data.filter(d=>d.Age>age);
+
+    if(globalFilter!==null){
+        f=f.filter(d=>d.HeartDisease==globalFilter||d.Sex==globalFilter);
+    }
+
+    if(type==="box"){
+        Plotly.newPlot("histogram",[{
+            y:f.map(d=>d[key]),
+            type:"box"
+        }]);
+        return;
+    }
+
+    if(color==="none"){
+        Plotly.newPlot("histogram",[{
+            x:f.map(d=>d[key]),
+            type:"histogram"
+        }]);
+    } else {
+        let g={};
+        f.forEach(d=>{
+            if(!g[d[color]]) g[d[color]]=[];
+            g[d[color]].push(d[key]);
+        });
+
+        let traces=Object.keys(g).map(k=>({
+            x:g[k],
+            type:"histogram",
+            name:k
+        }));
+
+        Plotly.newPlot("histogram",traces,{barmode:mode});
+    }
+}
+
+// BAR / PIE
+function updateBar(){
+
+    let key=document.getElementById("barKey").value;
+    let age=+document.getElementById("barFilter").value;
+    let type=document.getElementById("barType").value;
+    let orient=document.getElementById("barOrientation").value;
+    let scale=document.getElementById("barScale").value;
+
+    let f=data.filter(d=>d.Age>age);
+
+    if(globalFilter!==null){
+        f=f.filter(d=>d[key]==globalFilter);
+    }
+
+    let count={};
+    f.forEach(d=>{
+        count[d[key]]=(count[d[key]]||0)+1;
+    });
+
+    let labels=Object.keys(count);
+    let values=Object.values(count);
+
+    if(type==="pie"){
+        Plotly.newPlot("bar",[{
+            labels:labels,
+            values:values,
+            type:"pie"
+        }]);
+        return;
+    }
+
+    Plotly.newPlot("bar",[{
+        x: orient==="v"?labels:values,
+        y: orient==="v"?values:labels,
+        type:"bar",
+        orientation:orient,
+        marker:{
+            color:values,
+            colorscale:scale
+        }
+    }]);
+
+    document.getElementById("bar")
+    .on('plotly_click',e=>{
+        globalFilter=e.points[0].x;
+        updateScatter();
+        updateHist();
+    });
+}
+</script>
+
+</body>
+</html>
